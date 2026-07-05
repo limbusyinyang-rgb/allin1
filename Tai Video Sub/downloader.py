@@ -19,13 +19,21 @@ class DownloadWorker(QThread):
                 raise Exception("Đã hủy quá trình tải.")
             self.progress.emit(d)
 
+        try:
+            import imageio_ffmpeg
+            ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            ffmpeg_path = "ffmpeg" # Fallback
+
         ydl_opts = {
-            'outtmpl': os.path.join(self.output_dir, '%(title)s.%(ext)s'),
+            'outtmpl': os.path.join(self.output_dir, '%(title)s', '%(title)s.%(ext)s'),
             'progress_hooks': [progress_hook],
-            'format': 'bestvideo+bestaudio/best',
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'merge_output_format': 'mp4',
             'noplaylist': True,
             'writethumbnail': True,
-            'postprocessors': [{'key': 'FFmpegThumbnailsConvertor', 'format': 'jpg'}]
+            'postprocessors': [{'key': 'FFmpegThumbnailsConvertor', 'format': 'jpg'}],
+            'ffmpeg_location': ffmpeg_path
         }
         
         if self.browser:
@@ -37,7 +45,10 @@ class DownloadWorker(QThread):
                 title = info.get('title', 'Video')
                 self.finished.emit(title, True, "")
         except Exception as e:
-            self.finished.emit("", False, str(e))
+            error_msg = str(e)
+            if "Failed to decrypt with DPAPI" in error_msg:
+                error_msg = "Lỗi khóa bảo mật trình duyệt Chrome/Edge!\\n=> Vui lòng TẮT HẲN trình duyệt rồi bấm tải lại.\\n=> Hoặc BỎ CHỌN mục 'Lấy Cookie' nếu không cần thiết."
+            self.finished.emit("", False, error_msg)
 
     def cancel(self):
         self._is_cancelled = True
