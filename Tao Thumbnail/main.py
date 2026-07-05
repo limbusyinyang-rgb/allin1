@@ -170,46 +170,103 @@ class ThumbnailGeneratorWindow(QMainWindow):
         scroll_layout = QVBoxLayout(scroll_content)
         
         self.texts_config = {}
-        for pos_name, pos_label in [("top", "Tiêu đề TRÊN"), ("middle", "Tiêu đề GIỮA"), ("bottom", "Tiêu đề DƯỚI")]:
-            group = QGroupBox(pos_label)
-            form = QFormLayout(group)
-            
-            txt_input = QLineEdit()
-            txt_input.textChanged.connect(self.schedule_update)
-            
-            size_spin = QSpinBox()
-            size_spin.setRange(10, 500)
-            size_spin.setValue(100)
-            size_spin.valueChanged.connect(self.schedule_update)
-            
-            btn_color = QPushButton("Chọn màu")
-            btn_color.setStyleSheet("background-color: #ffffff; color: #000000; font-weight: bold;")
-            btn_color.clicked.connect(lambda checked, b=btn_color: self.choose_color(b))
-            
-            btn_glow = QPushButton("Chọn màu")
-            btn_glow.setStyleSheet("background-color: #ff0000; color: #ffffff; font-weight: bold;")
-            btn_glow.clicked.connect(lambda checked, b=btn_glow: self.choose_color(b))
-            
-            glow_radius = QSpinBox()
-            glow_radius.setRange(0, 100)
-            glow_radius.setValue(15)
-            glow_radius.valueChanged.connect(self.schedule_update)
-            
-            form.addRow("Nội dung:", txt_input)
-            form.addRow("Kích thước (px):", size_spin)
-            form.addRow("Màu chữ:", btn_color)
-            form.addRow("Màu rực sáng (Glow):", btn_glow)
-            form.addRow("Độ toả sáng:", glow_radius)
-            
-            scroll_layout.addWidget(group)
-            
-            self.texts_config[pos_name] = {
-                'text': txt_input,
-                'size': size_spin,
-                'color': btn_color,
-                'glow': btn_glow,
-                'glow_radius': glow_radius
-            }
+        
+        # 1. Tiêu Đề (Top)
+        grp_title = QGroupBox("1. Tiêu đề (Ở trên)")
+        form_title = QFormLayout(grp_title)
+        self.txt_title = QLineEdit()
+        self.txt_title.textChanged.connect(self.schedule_update)
+        self.spin_title = QSpinBox()
+        self.spin_title.setRange(10, 500)
+        self.spin_title.setValue(120)
+        self.spin_title.valueChanged.connect(self.schedule_update)
+        self.btn_color_title = QPushButton("Chọn màu chữ")
+        self.btn_color_title.setStyleSheet("background-color: #ffff00; color: #000000; font-weight: bold;")
+        self.btn_color_title.clicked.connect(lambda checked, b=self.btn_color_title: self.choose_color(b))
+        self.btn_glow_title = QPushButton("Chọn màu viền/tỏa")
+        self.btn_glow_title.setStyleSheet("background-color: #000000; color: #ffffff; font-weight: bold;")
+        self.btn_glow_title.clicked.connect(lambda checked, b=self.btn_glow_title: self.choose_color(b))
+        self.spin_glow_title = QSpinBox()
+        self.spin_glow_title.setRange(0, 100)
+        self.spin_glow_title.setValue(20)
+        self.spin_glow_title.valueChanged.connect(self.schedule_update)
+        form_title.addRow("Nội dung:", self.txt_title)
+        form_title.addRow("Kích thước:", self.spin_title)
+        form_title.addRow("Màu chữ:", self.btn_color_title)
+        form_title.addRow("Màu viền:", self.btn_glow_title)
+        form_title.addRow("Độ dày viền:", self.spin_glow_title)
+        scroll_layout.addWidget(grp_title)
+        
+        # 2. Câu SEO (Bottom)
+        grp_seo = QGroupBox("2. Câu SEO kích thích (Ở dưới)")
+        form_seo = QFormLayout(grp_seo)
+        self.txt_seo = QLineEdit()
+        self.txt_seo.textChanged.connect(self.schedule_update)
+        self.spin_seo = QSpinBox()
+        self.spin_seo.setRange(10, 500)
+        self.spin_seo.setValue(80)
+        self.spin_seo.valueChanged.connect(self.schedule_update)
+        self.btn_color_seo = QPushButton("Chọn màu chữ")
+        self.btn_color_seo.setStyleSheet("background-color: #ffffff; color: #000000; font-weight: bold;")
+        self.btn_color_seo.clicked.connect(lambda checked, b=self.btn_color_seo: self.choose_color(b))
+        self.btn_glow_seo = QPushButton("Chọn màu viền/tỏa")
+        self.btn_glow_seo.setStyleSheet("background-color: #ff0000; color: #ffffff; font-weight: bold;")
+        self.btn_glow_seo.clicked.connect(lambda checked, b=self.btn_glow_seo: self.choose_color(b))
+        self.spin_glow_seo = QSpinBox()
+        self.spin_glow_seo.setRange(0, 100)
+        self.spin_glow_seo.setValue(15)
+        self.spin_glow_seo.valueChanged.connect(self.schedule_update)
+        form_seo.addRow("Nội dung:", self.txt_seo)
+        form_seo.addRow("Kích thước:", self.spin_seo)
+        form_seo.addRow("Màu chữ:", self.btn_color_seo)
+        form_seo.addRow("Màu viền:", self.btn_glow_seo)
+        form_seo.addRow("Độ dày viền:", self.spin_glow_seo)
+        scroll_layout.addWidget(grp_seo)
+        
+        # 3. Trọn bộ / Phần (Bottom Right)
+        from PyQt6.QtWidgets import QRadioButton
+        grp_part = QGroupBox("3. Thể loại (Góc dưới phải)")
+        form_part = QFormLayout(grp_part)
+        
+        type_layout = QHBoxLayout()
+        self.radio_tronbo = QRadioButton("Trọn bộ")
+        self.radio_tronbo.setChecked(True)
+        self.radio_phan = QRadioButton("Phần")
+        self.spin_phan = QSpinBox()
+        self.spin_phan.setRange(1, 999)
+        self.spin_phan.setEnabled(False)
+        
+        self.radio_tronbo.toggled.connect(self.schedule_update)
+        self.radio_phan.toggled.connect(lambda checked: self.spin_phan.setEnabled(checked))
+        self.radio_phan.toggled.connect(self.schedule_update)
+        self.spin_phan.valueChanged.connect(self.schedule_update)
+        
+        type_layout.addWidget(self.radio_tronbo)
+        type_layout.addWidget(self.radio_phan)
+        type_layout.addWidget(self.spin_phan)
+        type_layout.addStretch()
+        
+        self.spin_part = QSpinBox()
+        self.spin_part.setRange(10, 500)
+        self.spin_part.setValue(90)
+        self.spin_part.valueChanged.connect(self.schedule_update)
+        self.btn_color_part = QPushButton("Chọn màu chữ")
+        self.btn_color_part.setStyleSheet("background-color: #ffff00; color: #000000; font-weight: bold;")
+        self.btn_color_part.clicked.connect(lambda checked, b=self.btn_color_part: self.choose_color(b))
+        self.btn_glow_part = QPushButton("Chọn màu viền/tỏa")
+        self.btn_glow_part.setStyleSheet("background-color: #ff0000; color: #ffffff; font-weight: bold;")
+        self.btn_glow_part.clicked.connect(lambda checked, b=self.btn_glow_part: self.choose_color(b))
+        self.spin_glow_part = QSpinBox()
+        self.spin_glow_part.setRange(0, 100)
+        self.spin_glow_part.setValue(15)
+        self.spin_glow_part.valueChanged.connect(self.schedule_update)
+        
+        form_part.addRow("Lựa chọn:", type_layout)
+        form_part.addRow("Kích thước:", self.spin_part)
+        form_part.addRow("Màu chữ:", self.btn_color_part)
+        form_part.addRow("Màu viền:", self.btn_glow_part)
+        form_part.addRow("Độ dày viền:", self.spin_glow_part)
+        scroll_layout.addWidget(grp_part)
             
         scroll_layout.addStretch()
         scroll.setWidget(scroll_content)
@@ -349,18 +406,53 @@ class ThumbnailGeneratorWindow(QMainWindow):
             
         width, height = img.size
         
+        # Xây dựng config ảo để dùng chung hàm vẽ
+        draw_configs = []
+        
+        # Tiêu đề (Top)
+        if self.txt_title.text().strip():
+            draw_configs.append({
+                "pos": "top",
+                "text": self.txt_title.text().strip().upper(), # Thường viết hoa
+                "size": self.spin_title.value(),
+                "color": self.btn_color_title,
+                "glow": self.btn_glow_title,
+                "glow_radius": self.spin_glow_title.value()
+            })
+            
+        # SEO (Bottom)
+        if self.txt_seo.text().strip():
+            draw_configs.append({
+                "pos": "bottom",
+                "text": self.txt_seo.text().strip(),
+                "size": self.spin_seo.value(),
+                "color": self.btn_color_seo,
+                "glow": self.btn_glow_seo,
+                "glow_radius": self.spin_glow_seo.value()
+            })
+            
+        # Trọn bộ / Phần (Bottom Right)
+        part_text = "TRỌN BỘ" if self.radio_tronbo.isChecked() else f"PHẦN {self.spin_phan.value()}"
+        draw_configs.append({
+            "pos": "bottom_right",
+            "text": part_text,
+            "size": self.spin_part.value(),
+            "color": self.btn_color_part,
+            "glow": self.btn_glow_part,
+            "glow_radius": self.spin_glow_part.value()
+        })
+        
         # Draw each text
-        for pos_name, cfg in self.texts_config.items():
-            text = cfg['text'].text().strip()
-            if not text:
-                continue
-                
-            size = cfg['size'].value()
+        for cfg in draw_configs:
+            text = cfg['text']
+            size = cfg['size']
             color = self._hex_to_rgb(self.get_qcolor_from_btn(cfg['color']))
             glow_color = self._hex_to_rgb(self.get_qcolor_from_btn(cfg['glow']))
-            glow_radius = cfg['glow_radius'].value()
+            glow_radius = cfg['glow_radius']
+            pos_name = cfg['pos']
             
             try:
+                # Black font usually works better for big titles if we want stroke
                 font = ImageFont.truetype(self.font_path, size)
             except:
                 font = ImageFont.load_default()
@@ -372,25 +464,22 @@ class ThumbnailGeneratorWindow(QMainWindow):
             tw = bbox[2] - bbox[0]
             th = bbox[3] - bbox[1]
             
-            x = (width - tw) / 2
-            
             if pos_name == "top":
-                y = height * 0.1
-            elif pos_name == "middle":
-                y = (height - th) / 2
-            else: 
-                y = height * 0.9 - th
+                x = (width - tw) / 2
+                y = height * 0.05 # Gần viền trên
+            elif pos_name == "bottom":
+                x = (width - tw) / 2
+                y = height * 0.95 - th # Gần viền dưới
+            else: # bottom_right
+                x = width * 0.98 - tw # Căn phải, chừa 2% lề
+                y = height * 0.85 - th # Dịch lên chút để không đè vào SEO
                 
+            # Draw strong stroke (viền) thay vì blur nhẹ, vì kiểu anime cần viền sắc nét
             if glow_radius > 0:
-                glow_layer = Image.new('RGBA', (width, height), (255, 255, 255, 0))
-                glow_draw = ImageDraw.Draw(glow_layer)
+                stroke_w = int(glow_radius)
+                draw.text((x, y), text, font=font, fill=glow_color, stroke_width=stroke_w, stroke_fill=glow_color)
                 
-                stroke_w = int(glow_radius / 2) + 2
-                glow_draw.text((x, y), text, font=font, fill=glow_color, stroke_width=stroke_w, stroke_fill=glow_color)
-                
-                glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(glow_radius))
-                img = Image.alpha_composite(img, glow_layer)
-                
+            # Draw main text
             draw.text((x, y), text, font=font, fill=color)
             img = Image.alpha_composite(img, txt_layer)
             
