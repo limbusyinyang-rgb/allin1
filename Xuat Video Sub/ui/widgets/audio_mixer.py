@@ -1,5 +1,5 @@
 import os
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QFormLayout, QHBoxLayout, QSlider, QLabel, QPushButton, QFileDialog, QDoubleSpinBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QFormLayout, QHBoxLayout, QSlider, QLabel, QPushButton, QFileDialog, QDoubleSpinBox, QCheckBox
 from PyQt6.QtCore import Qt, QUrl, QSettings
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 
