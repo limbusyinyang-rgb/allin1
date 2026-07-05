@@ -1,20 +1,75 @@
 import sys
 import os
+import io
+import urllib.request
+import json
+import traceback
+
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QFileDialog, QMessageBox, QColorDialog, QSpinBox,
-                             QGroupBox, QFormLayout, QScrollArea)
-from PyQt6.QtCore import Qt, QSettings
+                             QGroupBox, QFormLayout, QScrollArea, QComboBox, QTextEdit, QProgressBar)
+from PyQt6.QtCore import Qt, QSettings, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap, QImage, QColor
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-import io
+
+class AIGeneratorWorker(QThread):
+    finished = pyqtSignal(bool, str, object) # success, message, image_path_or_data
+    progress = pyqtSignal(int)
+
+    def __init__(self, api_key, payload):
+        super().__init__()
+        self.api_key = api_key
+        self.payload = payload
+
+    def run(self):
+        url = "https://api.shopaikey.com/images/google/generations"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        data = json.dumps(self.payload).encode('utf-8')
+        
+        try:
+            self.progress.emit(20)
+            req = urllib.request.Request(url, data=data, headers=headers, method='POST')
+            with urllib.request.urlopen(req, timeout=60) as response:
+                result = json.loads(response.read().decode('utf-8'))
+                self.progress.emit(60)
+                
+                if "data" in result and len(result["data"]) > 0:
+                    img_url = result["data"][0].get("url")
+                    if img_url:
+                        # Tải ảnh về
+                        self.progress.emit(80)
+                        import tempfile
+                        import uuid
+                        tmp_path = os.path.join(tempfile.gettempdir(), f"nano_banana_{uuid.uuid4().hex}.png")
+                        urllib.request.urlretrieve(img_url, tmp_path)
+                        self.progress.emit(100)
+                        self.finished.emit(True, "Tạo ảnh thành công!", tmp_path)
+                    else:
+                        self.finished.emit(False, "Không tìm thấy URL ảnh trong kết quả trả về", None)
+                else:
+                    self.finished.emit(False, "Kết quả trả về không hợp lệ", None)
+        except urllib.error.HTTPError as e:
+            err_msg = e.read().decode('utf-8')
+            try:
+                err_json = json.loads(err_msg)
+                err_text = err_json.get("error", {}).get("message", err_msg)
+            except:
+                err_text = err_msg
+            self.finished.emit(False, f"Lỗi API ({e.code}): {err_text}", None)
+        except Exception as e:
+            self.finished.emit(False, f"Lỗi hệ thống: {str(e)}", None)
+
 
 class ThumbnailGeneratorWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Tạo Thumbnail Sub (Custom Text)")
-        self.resize(1100, 750)
+        self.setWindowTitle("Tạo Thumbnail Sub (AI & Custom Text)")
+        self.resize(1200, 800)
         
         self.settings = QSettings("MyCapCut", "ThumbnailGen")
         self.bg_image_path = None
@@ -34,23 +89,87 @@ class ThumbnailGeneratorWindow(QMainWindow):
         main_layout = QHBoxLayout(central)
         
         # Left Panel (Controls)
-        control_panel = QWidget()
-        control_panel.setFixedWidth(400)
-        control_layout = QVBoxLayout(control_panel)
+        left_panel = QWidget()
+        left_panel.setFixedWidth(450)
+        control_layout = QVBoxLayout(left_panel)
         
-        # BG Image Section
-        bg_group = QGroupBox("Ảnh Nền (Background)")
-        bg_layout = QHBoxLayout(bg_group)
-        self.btn_load_bg = QPushButton("Chọn Ảnh Nền...")
+        # Tabs for Control Panel (AI vs Text)
+        from PyQt6.QtWidgets import QTabWidget
+        self.tabs = QTabWidget()
+        
+        # TAB 1: AI GENERATION
+        ai_tab = QWidget()
+        ai_layout = QVBoxLayout(ai_tab)
+        
+        ai_form = QFormLayout()
+        self.txt_api_key = QLineEdit()
+        self.txt_api_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_api_key.setText(self.settings.value("nano_api_key", ""))
+        
+        self.combo_model = QComboBox()
+        self.combo_model.addItems(["nano-banana", "nano-banana-2", "nano-banana-pro"])
+        self.combo_model.setCurrentText(self.settings.value("nano_model", "nano-banana-2"))
+        self.combo_model.currentTextChanged.connect(self.on_model_changed)
+        
+        self.txt_prompt = QTextEdit()
+        self.txt_prompt.setFixedHeight(80)
+        
+        self.combo_size = QComboBox()
+        self.combo_size.addItems(["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"])
+        self.combo_size.setCurrentText("16:9")
+        
+        self.combo_image_size = QComboBox()
+        self.combo_image_size.addItems(["0.5K", "1K", "2K", "4K"])
+        self.combo_image_size.setCurrentText("2K")
+        
+        self.txt_ref_urls = QTextEdit()
+        self.txt_ref_urls.setFixedHeight(60)
+        self.txt_ref_urls.setPlaceholderText("Nhập URL ảnh tham chiếu (mỗi dòng 1 URL, tối đa 3-5 ảnh)")
+        
+        ai_form.addRow("API Key:", self.txt_api_key)
+        ai_form.addRow("Model:", self.combo_model)
+        ai_form.addRow("Prompt:", self.txt_prompt)
+        ai_form.addRow("Khung hình:", self.combo_size)
+        ai_form.addRow("Độ phân giải:", self.combo_image_size)
+        ai_form.addRow("Ảnh tham chiếu:", self.txt_ref_urls)
+        
+        self.btn_generate_ai = QPushButton("🚀 TẠO ẢNH BẰNG AI")
+        self.btn_generate_ai.setStyleSheet("background-color: #3b82f6; color: white; font-weight: bold; padding: 12px; font-size: 14px;")
+        self.btn_generate_ai.clicked.connect(self.start_ai_generation)
+        
+        self.progress_ai = QProgressBar()
+        self.progress_ai.hide()
+        
+        # Manual image select
+        manual_bg_layout = QHBoxLayout()
+        self.btn_load_bg = QPushButton("Hoặc: Chọn Ảnh Nền Có Sẵn...")
         self.btn_load_bg.clicked.connect(self.load_background)
-        self.lbl_bg_name = QLabel("Chưa chọn ảnh")
-        bg_layout.addWidget(self.btn_load_bg)
-        bg_layout.addWidget(self.lbl_bg_name)
-        control_layout.addWidget(bg_group)
+        self.lbl_bg_name = QLabel("Chưa có ảnh nền")
+        self.lbl_bg_name.setWordWrap(True)
+        manual_bg_layout.addWidget(self.btn_load_bg)
+        manual_bg_layout.addWidget(self.lbl_bg_name)
         
-        # Text Configurations
+        ai_layout.addLayout(ai_form)
+        ai_layout.addWidget(self.btn_generate_ai)
+        ai_layout.addWidget(self.progress_ai)
+        ai_layout.addSpacing(15)
+        ai_layout.addWidget(QLabel("<b>Ảnh nền cục bộ:</b>"))
+        ai_layout.addLayout(manual_bg_layout)
+        ai_layout.addStretch()
+        
+        self.tabs.addTab(ai_tab, "Tạo Ảnh Nền AI")
+        
+        # TAB 2: TEXT OVERLAY
+        text_tab = QWidget()
+        text_layout = QVBoxLayout(text_tab)
+        
+        # Put text config in a scroll area just in case
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        
         self.texts_config = {}
-        
         for pos_name, pos_label in [("top", "Tiêu đề TRÊN"), ("middle", "Tiêu đề GIỮA"), ("bottom", "Tiêu đề DƯỚI")]:
             group = QGroupBox(pos_label)
             form = QFormLayout(group)
@@ -82,7 +201,7 @@ class ThumbnailGeneratorWindow(QMainWindow):
             form.addRow("Màu rực sáng (Glow):", btn_glow)
             form.addRow("Độ toả sáng:", glow_radius)
             
-            control_layout.addWidget(group)
+            scroll_layout.addWidget(group)
             
             self.texts_config[pos_name] = {
                 'text': txt_input,
@@ -92,27 +211,98 @@ class ThumbnailGeneratorWindow(QMainWindow):
                 'glow_radius': glow_radius
             }
             
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_content)
+        text_layout.addWidget(scroll)
+        
+        self.tabs.addTab(text_tab, "Chèn Chữ (Text Overlay)")
+        
+        control_layout.addWidget(self.tabs)
+        
         # Export
         self.btn_export = QPushButton("Xuất Ảnh Thumbnail")
-        self.btn_export.setStyleSheet("background-color: #10b981; color: white; font-weight: bold; padding: 10px; font-size: 16px;")
+        self.btn_export.setStyleSheet("background-color: #10b981; color: white; font-weight: bold; padding: 12px; font-size: 16px;")
         self.btn_export.clicked.connect(self.export_thumbnail)
-        control_layout.addStretch()
         control_layout.addWidget(self.btn_export)
         
         # Right Panel (Preview)
         preview_panel = QWidget()
         preview_layout = QVBoxLayout(preview_panel)
         
-        self.lbl_preview = QLabel("Vui lòng chọn ảnh nền để bắt đầu...")
+        self.lbl_preview = QLabel("Vui lòng tạo ảnh AI hoặc chọn ảnh nền để bắt đầu...")
         self.lbl_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_preview.setStyleSheet("background-color: #1e1e1e; color: #666;")
         
-        # Put in scroll area in case of huge images, though we will scale to fit
         preview_layout.addWidget(self.lbl_preview)
         
-        main_layout.addWidget(control_panel)
+        main_layout.addWidget(left_panel)
         main_layout.addWidget(preview_panel, stretch=1)
         
+        # Initialize UI states
+        self.on_model_changed(self.combo_model.currentText())
+
+    def on_model_changed(self, model_name):
+        if model_name == "nano-banana":
+            self.combo_image_size.setEnabled(False)
+        else:
+            self.combo_image_size.setEnabled(True)
+
+    def start_ai_generation(self):
+        api_key = self.txt_api_key.text().strip()
+        if not api_key:
+            QMessageBox.warning(self, "Lỗi", "Vui lòng nhập API Key!")
+            return
+            
+        self.settings.setValue("nano_api_key", api_key)
+        
+        model = self.combo_model.currentText()
+        self.settings.setValue("nano_model", model)
+        
+        prompt = self.txt_prompt.toPlainText().strip()
+        if not prompt:
+            QMessageBox.warning(self, "Lỗi", "Vui lòng nhập Prompt!")
+            return
+            
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "size": self.combo_size.currentText(),
+            "format": "png",
+            "response_format": "url"
+        }
+        
+        if model != "nano-banana":
+            payload["imageSize"] = self.combo_image_size.currentText()
+            
+        ref_urls = [url.strip() for url in self.txt_ref_urls.toPlainText().split('\n') if url.strip()]
+        if ref_urls:
+            max_refs = 3 if model == "nano-banana" else 5
+            if len(ref_urls) > max_refs:
+                QMessageBox.warning(self, "Lỗi", f"Model {model} chỉ hỗ trợ tối đa {max_refs} ảnh tham chiếu.")
+                return
+            payload["image_urls"] = ref_urls
+            
+        self.btn_generate_ai.setEnabled(False)
+        self.progress_ai.show()
+        self.progress_ai.setValue(0)
+        
+        self.worker = AIGeneratorWorker(api_key, payload)
+        self.worker.progress.connect(self.progress_ai.setValue)
+        self.worker.finished.connect(self.on_ai_finished)
+        self.worker.start()
+
+    def on_ai_finished(self, success, msg, img_path):
+        self.btn_generate_ai.setEnabled(True)
+        self.progress_ai.hide()
+        
+        if success and img_path:
+            self.bg_image_path = img_path
+            self.lbl_bg_name.setText("AI Generated Image")
+            self.update_preview()
+            self.tabs.setCurrentIndex(1) # Chuyển sang tab chèn chữ
+        else:
+            QMessageBox.critical(self, "Lỗi Tạo Ảnh", msg)
+
     def choose_color(self, btn):
         color = QColorDialog.getColor()
         if color.isValid():
@@ -135,13 +325,11 @@ class ThumbnailGeneratorWindow(QMainWindow):
             self.update_preview()
             
     def schedule_update(self):
-        # Could use a QTimer to debounce if it's too slow, but PIL is fast enough for UI
         self.update_preview()
         
     def get_qcolor_from_btn(self, btn):
         style = btn.styleSheet()
         try:
-            # extract background-color: #XXXXXX
             color_str = style.split("background-color: ")[1].split(";")[0].strip()
             return color_str
         except:
@@ -155,7 +343,6 @@ class ThumbnailGeneratorWindow(QMainWindow):
 
     def generate_image(self):
         if not self.bg_image_path or not os.path.exists(self.bg_image_path):
-            # Create a dummy blank image if no bg is selected
             img = Image.new('RGB', (1280, 720), color=(40, 40, 40))
         else:
             img = Image.open(self.bg_image_path).convert('RGBA')
@@ -178,11 +365,9 @@ class ThumbnailGeneratorWindow(QMainWindow):
             except:
                 font = ImageFont.load_default()
                 
-            # Create a separate layer for drawing this text's glow and fill
             txt_layer = Image.new('RGBA', (width, height), (255, 255, 255, 0))
             draw = ImageDraw.Draw(txt_layer)
             
-            # Calculate text size and position
             bbox = draw.textbbox((0, 0), text, font=font)
             tw = bbox[2] - bbox[0]
             th = bbox[3] - bbox[1]
@@ -193,25 +378,19 @@ class ThumbnailGeneratorWindow(QMainWindow):
                 y = height * 0.1
             elif pos_name == "middle":
                 y = (height - th) / 2
-            else: # bottom
+            else: 
                 y = height * 0.9 - th
                 
-            # Draw glow (by drawing thick stroke and blurring)
             if glow_radius > 0:
                 glow_layer = Image.new('RGBA', (width, height), (255, 255, 255, 0))
                 glow_draw = ImageDraw.Draw(glow_layer)
                 
-                # Draw with stroke for initial thickness
                 stroke_w = int(glow_radius / 2) + 2
                 glow_draw.text((x, y), text, font=font, fill=glow_color, stroke_width=stroke_w, stroke_fill=glow_color)
                 
-                # Apply blur
                 glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(glow_radius))
-                
-                # Composite glow
                 img = Image.alpha_composite(img, glow_layer)
                 
-            # Draw main text
             draw.text((x, y), text, font=font, fill=color)
             img = Image.alpha_composite(img, txt_layer)
             
@@ -221,7 +400,6 @@ class ThumbnailGeneratorWindow(QMainWindow):
         try:
             img = self.generate_image()
             
-            # Convert PIL to QPixmap
             buf = io.BytesIO()
             img.save(buf, format='JPEG', quality=85)
             
@@ -230,7 +408,6 @@ class ThumbnailGeneratorWindow(QMainWindow):
             
             pixmap = QPixmap.fromImage(qimg)
             
-            # Scale to fit label
             lbl_size = self.lbl_preview.size()
             if lbl_size.width() > 0 and lbl_size.height() > 0:
                 scaled_pix = pixmap.scaled(lbl_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
@@ -251,7 +428,6 @@ class ThumbnailGeneratorWindow(QMainWindow):
             
         last_dir = self.settings.value("last_export_dir", "")
         
-        # Check workspace config
         import json
         config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "workspace_config.json")
         try:
