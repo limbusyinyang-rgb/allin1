@@ -289,13 +289,23 @@ class DubbingWorker(QThread):
         
         # Pre-load all segment audios to analyze durations
         loaded_segments = []
+        import subprocess
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        
         for i, sub in enumerate(subs):
             seg_path = segment_files.get(i)
             audio = None
             duration_ms = 0
             if seg_path and os.path.exists(seg_path):
                 try:
-                    audio = AudioSegment.from_file(seg_path)
+                    # Convert MP3 to WAV using ffmpeg directly (bypasses ffprobe requirement in pydub)
+                    wav_path = seg_path.replace(".mp3", ".wav")
+                    subprocess.run(
+                        [ffmpeg_exe, "-y", "-i", seg_path, wav_path], 
+                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    )
+                    
+                    audio = AudioSegment.from_wav(wav_path)
                     duration_ms = len(audio)
                 except Exception as e:
                     self.progress_updated.emit(90, f"Dòng {i+1}: Không thể đọc file âm thanh segment: {e}")
