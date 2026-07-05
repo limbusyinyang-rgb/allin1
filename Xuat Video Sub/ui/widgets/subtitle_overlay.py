@@ -127,7 +127,7 @@ class SubtitleOverlayWidget(QWidget):
         layout = QVBoxLayout(self)
         
         # Real-time update and pause hooks
-        self.graphics_item.on_geometry_changed = lambda: self.set_frame(self.last_image) if hasattr(self, 'last_image') and self.last_image else None
+        self.graphics_item.on_geometry_changed = lambda: self.graphics_item.set_frame(self.last_image) if hasattr(self, 'last_image') and self.last_image else None
         self.graphics_item.on_interaction = self.request_pause
         
         form = QFormLayout()
