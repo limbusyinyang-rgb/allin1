@@ -73,7 +73,10 @@ class FeatureCard(QFrame):
         
         if badge_text:
             badge = QLabel(badge_text)
-            badge.setObjectName("BadgeLabel")
+            if badge_text == "Hoàn Thiện":
+                badge.setObjectName("BadgeLabelSuccess")
+            else:
+                badge.setObjectName("BadgeLabel")
             badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
             header_row.addWidget(badge)
         header_row.addStretch()
@@ -193,7 +196,7 @@ class MainSuiteDashboard(QMainWindow):
             title="Lồng Tiếng Phụ Đề",
             description="Chuyển đổi văn bản phụ đề SRT thành tệp âm thanh lồng tiếng hoàn chỉnh khớp nối chính xác thời gian bằng CapCut TTS.",
             button_text="Lồng Tiếng Sub",
-            badge_text="Thử Nghiệm"
+            badge_text="Hoàn Thiện"
         )
         self.card_dubbing.action_btn.clicked.connect(self.launch_dubbing_tool)
 
@@ -211,7 +214,7 @@ class MainSuiteDashboard(QMainWindow):
             title="Tải Video Sub",
             description="Tự động bắt link và tải video từ TikTok, Douyin, Bilibili với chất lượng cao nhất, không dính logo (watermark).",
             button_text="Tải Video",
-            badge_text="Thử Nghiệm"
+            badge_text="Hoàn Thiện"
         )
         self.card_download.action_btn.clicked.connect(self.launch_download_tool)
 
@@ -293,6 +296,16 @@ class MainSuiteDashboard(QMainWindow):
             #BadgeLabel {
                 background-color: #c084fc;
                 color: #1e1b4b;
+                font-size: 10px;
+                font-weight: bold;
+                border-radius: 4px;
+                padding: 2px 6px;
+                margin-left: 10px;
+            }
+            
+            #BadgeLabelSuccess {
+                background-color: #10b981;
+                color: #ffffff;
                 font-size: 10px;
                 font-weight: bold;
                 border-radius: 4px;
