@@ -1,7 +1,7 @@
 import sys
 import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                             QHBoxLayout, QLabel, QLineEdit, QPushButton, 
+                             QHBoxLayout, QLabel, QLineEdit, QTextEdit, QPushButton, 
                              QProgressBar, QFileDialog, QMessageBox, QComboBox, QFormLayout)
 from PyQt6.QtCore import Qt, QSettings
 from PyQt6.QtGui import QIcon
@@ -12,7 +12,7 @@ class VideoDownloaderWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Tải Video Sub (Tiktok, Douyin, Bilibili)")
-        self.resize(600, 250)
+        self.resize(700, 450)
         
         self.settings = QSettings("MyCapCut", "TaiVideoSub")
         self.worker = None
@@ -32,11 +32,17 @@ class VideoDownloaderWindow(QMainWindow):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
         
+        note = QLabel("Lưu ý: Bilibili và một số nền tảng gắn sẵn watermark vào video gốc nên không thể xóa được.")
+        note.setStyleSheet("font-size: 11px; color: #eab308; font-style: italic;")
+        note.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(note)
+        
         # URL Input
-        url_layout = QHBoxLayout()
-        self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("Dán link video (Tiktok, Douyin, Bilibili) vào đây...")
-        url_layout.addWidget(QLabel("Link Video:"))
+        url_layout = QVBoxLayout()
+        self.url_input = QTextEdit()
+        self.url_input.setPlaceholderText("Dán danh sách link video vào đây (Mỗi link 1 dòng)...")
+        self.url_input.setMaximumHeight(80)
+        url_layout.addWidget(QLabel("Link Video (Có thể dán nhiều link):"))
         url_layout.addWidget(self.url_input)
         layout.addLayout(url_layout)
         
@@ -90,9 +96,16 @@ class VideoDownloaderWindow(QMainWindow):
         layout.addWidget(self.status_lbl)
         layout.addWidget(self.progress_bar)
         
+        # Log Area
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        self.log_text.setPlaceholderText("Tiến trình tải sẽ hiển thị ở đây...")
+        self.log_text.setStyleSheet("background-color: #1e1e1e; color: #a3be8c; font-family: monospace;")
+        layout.addWidget(self.log_text)
+        
         # Action Buttons
         btn_layout = QHBoxLayout()
-        self.btn_download = QPushButton("Tải Video")
+        self.btn_download = QPushButton("Tải Toàn Bộ")
         self.btn_download.setStyleSheet("background-color: #10b981; color: white; font-weight: bold; padding: 8px;")
         self.btn_download.clicked.connect(self.start_download)
         
@@ -119,17 +132,25 @@ class VideoDownloaderWindow(QMainWindow):
         else:
             QMessageBox.warning(self, "Lỗi", "Thư mục chưa tồn tại!")
             
+    def append_log(self, msg):
+        self.log_text.append(msg)
+        # Tự động cuộn xuống dưới cùng
+        scrollbar = self.log_text.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+
     def start_download(self):
-        url = self.url_input.text().strip()
+        urls_text = self.url_input.toPlainText().strip()
         out_dir = self.out_input.text().strip()
         browser = self.browser_combo.currentText()
         
         self.settings.setValue("last_browser", browser)
         
-        if not url:
-            QMessageBox.warning(self, "Lỗi", "Vui lòng nhập link video!")
+        if not urls_text:
+            QMessageBox.warning(self, "Lỗi", "Vui lòng nhập ít nhất 1 link video!")
             return
             
+        urls = [u.strip() for u in urls_text.splitlines() if u.strip()]
+        
         if not os.path.exists(out_dir):
             try:
                 os.makedirs(out_dir)
@@ -143,13 +164,17 @@ class VideoDownloaderWindow(QMainWindow):
         self.progress_bar.setValue(0)
         self.status_lbl.setText("Đang lấy thông tin video...")
         
+        self.log_text.clear()
+        self.append_log(f"Đã nạp {len(urls)} link. Bắt đầu xử lý...")
+        
         browser_val = None
         if browser != "Không dùng Cookie":
             browser_val = browser.lower()
             
-        self.worker = DownloadWorker(url, out_dir, browser_val)
+        self.worker = DownloadWorker(urls, out_dir, browser_val)
         self.worker.progress.connect(self.update_progress)
         self.worker.finished.connect(self.on_download_finished)
+        self.worker.log_msg.connect(self.append_log)
         self.worker.start()
         
     def cancel_download(self):
@@ -175,22 +200,24 @@ class VideoDownloaderWindow(QMainWindow):
             self.progress_bar.setValue(100)
             self.status_lbl.setText("Đang xử lý file...")
             
-    def on_download_finished(self, title, success, err_msg):
+    def on_download_finished(self, total, success_count, errors):
         self.btn_download.setEnabled(True)
         self.btn_cancel.setEnabled(False)
         self.url_input.setEnabled(True)
         
-        if success:
-            self.status_lbl.setText(f"Tải xong: {title}")
-            QMessageBox.information(self, "Thành công", f"Đã tải xong video:\n{title}")
-            self.url_input.clear()
-        else:
-            if "Đã hủy" in err_msg:
-                self.status_lbl.setText("Đã hủy quá trình tải.")
-                self.progress_bar.setValue(0)
-            else:
-                self.status_lbl.setText("Lỗi tải video.")
-                QMessageBox.critical(self, "Lỗi", f"Tải video thất bại:\n{err_msg}")
+        self.status_lbl.setText(f"Hoàn tất: Tải thành công {success_count}/{total} video.")
+        self.progress_bar.setValue(100)
+        
+        self.append_log(f"\n=== HOÀN TẤT ===")
+        self.append_log(f"Thành công: {success_count}")
+        self.append_log(f"Thất bại: {total - success_count}")
+        
+        if errors:
+            self.append_log("Chi tiết lỗi:")
+            for err in errors:
+                self.append_log(f"- {err}")
+                
+        QMessageBox.information(self, "Xong", f"Quá trình tải hàng loạt đã hoàn tất!\nThành công: {success_count}/{total}")
                 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
