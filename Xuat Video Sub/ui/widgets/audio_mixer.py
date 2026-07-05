@@ -37,6 +37,11 @@ class AudioMixerWidget(QWidget):
         self.add_vol_slider.valueChanged.connect(self.update_add_volume)
         form.addRow("Added Vol (%):", self.add_vol_slider)
         
+        # Trim Video to Audio
+        self.chk_trim_video = QCheckBox("Cắt video vừa bằng thời lượng Audio thêm")
+        self.chk_trim_video.setChecked(True)
+        form.addRow("", self.chk_trim_video)
+        
         layout.addLayout(form)
         layout.addStretch()
 
@@ -69,7 +74,5 @@ class AudioMixerWidget(QWidget):
             "orig_audio_vol": self.orig_vol_slider.value() / 100.0,
             "added_audio": self.added_audio_path,
             "added_audio_vol": self.add_vol_slider.value() / 100.0,
-            "fade_in": self.fade_in_spin.value(),
-            "fade_out": self.fade_out_spin.value(),
-            "delay_start": self.delay_spin.value()
+            "trim_video": self.chk_trim_video.isChecked()
         }

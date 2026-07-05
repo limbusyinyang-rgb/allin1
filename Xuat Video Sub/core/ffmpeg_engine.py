@@ -55,31 +55,49 @@ class FFmpegExportEngine(QThread):
             if match_res:
                 width = int(match_res.group(1))
                 height = int(match_res.group(2))
+            has_audio = "Audio:" in probe.stderr
         except Exception as e:
             self.log_updated.emit(f"Warning: Không thể probe video - {e}")
+            has_audio = True # Fallback assume it has audio
             
         cmd = [ffmpeg_exe, "-y", "-i", video_path]
         filter_complex = []
         inputs_count = 1  # [0:v] and [0:a]
         
         # Audio Mixing
-        audio_inputs = ["[0:a]"]
         orig_vol = self.config.get("orig_audio_vol", 1.0)
-        audio_filter = f"[0:a]volume={orig_vol}[a0];"
-        
         added_audio = self.config.get("added_audio", "")
-        mix_needed = False
-        if added_audio and os.path.exists(added_audio):
-            cmd.extend(["-i", added_audio])
-            added_vol = self.config.get("added_audio_vol", 1.0)
-            
-            a1_flt = f"[{inputs_count}:a]volume={added_vol}[a1]"
-            audio_filter += a1_flt + ";"
-            audio_filter += "[a0][a1]amix=inputs=2:duration=first[aout]"
-            mix_needed = True
-            inputs_count += 1
+        added_vol = self.config.get("added_audio_vol", 1.0)
+        trim_video = self.config.get("trim_video", True)
+        
+        has_added_audio = bool(added_audio and os.path.exists(added_audio))
+        
+        if has_audio and orig_vol > 0:
+            audio_filter = f"[0:a]volume={orig_vol}[a0];"
+            if has_added_audio:
+                cmd.extend(["-i", added_audio])
+                # If trim is enabled, amix duration is shortest (which is the shortest of original or added)
+                # Or we just use longest and let -shortest global flag handle the trim
+                a1_flt = f"[{inputs_count}:a]volume={added_vol}[a1];"
+                audio_filter += a1_flt
+                amix_dur = "shortest" if trim_video else "longest"
+                audio_filter += f"[a0][a1]amix=inputs=2:duration={amix_dur}[aout]"
+                inputs_count += 1
+            else:
+                audio_filter += "[a0]acopy[aout]"
         else:
-            audio_filter += "[a0]acopy[aout]"
+            # Original audio muted or not present
+            if has_added_audio:
+                cmd.extend(["-i", added_audio])
+                audio_filter = f"[{inputs_count}:a]volume={added_vol}[aout]"
+                inputs_count += 1
+            else:
+                # No audio at all, we must provide a dummy silent audio or just not map [aout]
+                audio_filter = f"anullsrc=r=44100:cl=stereo[aout]"
+                
+        # Handle global trim flag
+        if trim_video and has_added_audio:
+            cmd.append("-shortest")
             
         # Video Filter Complex
         # 1. Start with [0:v]
