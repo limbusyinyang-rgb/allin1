@@ -1,0 +1,35 @@
+# Môi trường ảo (Virtual Environments)
+.venv/
+venv/
+env/
+.env
+
+# Cache của Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# File dữ liệu, media lớn (Video, Audio) thường không đưa lên GitHub
+*.mp4
+*.avi
+*.mkv
+*.wav
+*.mp3
+*.flac
+
+# Log files
+*.log
+
+# Cấu hình IDE
+.vscode/
+.idea/
+
+# Các file rác hệ thống
+.DS_Store
+Thumbs.db
+
+# Build thu m?c
+build/
+dist/
+*.spec

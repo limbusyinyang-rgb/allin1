@@ -1,0 +1,21 @@
+{
+    "last_dir": "D:/ALL VIDEOS/TRUYỆN GỐC",
+    "video_input": "D:/ALL VIDEOS/TRUYỆN GỐC/《山村剃头匠》合集一口气看完.mp4",
+    "srt_input": "C:/Users/KANG/Desktop/《山村剃头匠》合集一口气看完.srt",
+    "model": "medium",
+    "device": "cuda",
+    "compute_type": "int8",
+    "ocr_lang_name": "Tiếng Trung (Giản Thể)",
+    "scan_interval": 0.1,
+    "min_confidence": 100,
+    "similarity_threshold": 100,
+    "crop_x_start": 0,
+    "crop_x_end": 100,
+    "crop_y_start": 90,
+    "crop_y_end": 100,
+    "scans_per_sec": 25,
+    "filter_keywords": "",
+    "auto_mp": true,
+    "chunk_duration": 5,
+    "num_workers": 3
+}
