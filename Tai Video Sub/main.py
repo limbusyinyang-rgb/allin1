@@ -62,9 +62,13 @@ class VideoDownloaderWindow(QMainWindow):
         self.btn_browse = QPushButton("Chọn Thư Mục")
         self.btn_browse.clicked.connect(self.browse_output)
         
+        self.btn_open_folder = QPushButton("Mở Thư Mục")
+        self.btn_open_folder.clicked.connect(self.open_output_folder)
+        
         out_layout.addWidget(QLabel("Lưu tại:"))
         out_layout.addWidget(self.out_input)
         out_layout.addWidget(self.btn_browse)
+        out_layout.addWidget(self.btn_open_folder)
         layout.addLayout(out_layout)
         
         # Options
@@ -107,6 +111,13 @@ class VideoDownloaderWindow(QMainWindow):
         if dir_path:
             self.out_input.setText(dir_path)
             self.settings.setValue("last_download_dir", dir_path)
+            
+    def open_output_folder(self):
+        folder = self.out_input.text().strip()
+        if os.path.exists(folder):
+            os.startfile(folder)
+        else:
+            QMessageBox.warning(self, "Lỗi", "Thư mục chưa tồn tại!")
             
     def start_download(self):
         url = self.url_input.text().strip()
