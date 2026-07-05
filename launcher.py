@@ -1,8 +1,7 @@
 import sys
 import os
 import json
-import urllib.request
-import urllib.error
+import requests
 import zipfile
 import subprocess
 import tempfile
@@ -72,13 +71,13 @@ class UpdaterThread(QThread):
 
             # 2. Lấy version từ GitHub (dùng SHA của commit mới nhất)
             try:
-                req = urllib.request.Request(GITHUB_API_COMMITS_URL, headers={
+                response = requests.get(GITHUB_API_COMMITS_URL, headers={
                     'User-Agent': 'Mozilla/5.0',
                     'Accept': 'application/vnd.github.v3+json'
-                })
-                with urllib.request.urlopen(req, timeout=10) as response:
-                    github_data = json.loads(response.read().decode('utf-8'))
-                    remote_version = github_data.get("sha", "0.0.0")[:7] # Lấy 7 ký tự đầu
+                }, timeout=10)
+                response.raise_for_status()
+                github_data = response.json()
+                remote_version = github_data.get("sha", "0.0.0")[:7] # Lấy 7 ký tự đầu
             except Exception as e:
                 # Bắt buộc phải có mạng
                 self.finished_update.emit(False, f"Lỗi mạng: Không thể kết nối máy chủ.\\n{e}")
@@ -98,24 +97,23 @@ class UpdaterThread(QThread):
             zip_path = os.path.join(tempfile.gettempdir(), "tooo_update_package.zip")
             
             try:
-                req = urllib.request.Request(GITHUB_ZIP_URL, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=15) as response:
-                    total_size = int(response.getheader('Content-Length', -1))
-                    block_size = 32768
-                    read_so_far = 0
-                    
-                    with open(zip_path, 'wb') as out_file:
-                        while True:
-                            buffer = response.read(block_size)
-                            if not buffer:
-                                break
-                            read_so_far += len(buffer)
-                            out_file.write(buffer)
-                            if total_size > 0:
-                                self.progress_pct.emit(int((read_so_far * 100) / total_size))
-                            else:
-                                fake_pct = min(99, int(read_so_far / (1024*1024) * 5))
-                                self.progress_pct.emit(fake_pct)
+                response = requests.get(GITHUB_ZIP_URL, headers={'User-Agent': 'Mozilla/5.0'}, stream=True, timeout=15)
+                response.raise_for_status()
+                total_size = int(response.headers.get('Content-Length', -1))
+                block_size = 32768
+                read_so_far = 0
+                
+                with open(zip_path, 'wb') as out_file:
+                    for data in response.iter_content(block_size):
+                        if not data:
+                            break
+                        read_so_far += len(data)
+                        out_file.write(data)
+                        if total_size > 0:
+                            self.progress_pct.emit(int((read_so_far * 100) / total_size))
+                        else:
+                            fake_pct = min(99, int(read_so_far / (1024*1024) * 5))
+                            self.progress_pct.emit(fake_pct)
             except Exception as e:
                 self.finished_update.emit(False, f"Lỗi khi tải mã nguồn: {e}")
                 return
